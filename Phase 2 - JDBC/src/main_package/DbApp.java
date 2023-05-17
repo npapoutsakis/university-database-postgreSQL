@@ -10,6 +10,8 @@ import java.io.IOException;
 import java.io.InputStreamReader;
 import java.sql.*;
 import java.util.concurrent.TimeUnit;
+import java.util.ArrayList;
+import java.util.List;
 
 public class DbApp {
 	
@@ -103,7 +105,7 @@ public class DbApp {
 					changeStudentGrade();
 					break;
 				case 3:
-					
+					searchPerson();
 					break;
 				case 4:
 					getAnalyticalAssessment();
@@ -253,9 +255,176 @@ public class DbApp {
 		return;
 	}
 	
+	/**TODO: DEBUG THIS SHIT **/
+	// 1.3 
+	private void searchPerson() {
+		
+		// Statement with parameters
+		PreparedStatement pr_statement, rows_statement;
+		
+		try {
+			
+			// get_fullname_and_positions() function exists from phase 1
+			String search_query = "SELECT * FROM get_fullname_and_positions()\r\n"
+								+ "WHERE \"Surname\" LIKE ? \r\n"
+								+ "ORDER BY \"Surname\"";
+			
+			String rows = "SELECT COUNT(*) FROM get_fullname_and_positions() WHERE \"Surname\" LIKE ?";
+			
+
+			rows_statement = db_connection.prepareStatement(rows);			
+						
+			// Get surname letters
+			String letters = readString("Give letters: ");
+			
+			// changed format to 'letters%'
+			letters = letters+"%";
+			
+			// Set parameter
+			rows_statement.setString(1, letters);
+			
+			// Get returned data
+			ResultSet rows_output = rows_statement.executeQuery();
+			
+			if(!rows_output.next()) {
+	        	//ResultSet is empty
+			    System.out.println("Can't find any person!");
+			    
+			    //Release
+			    rows_output.close();
+			    rows_statement.close();
+			    
+			    waitUser();
+			    
+			    return;	
+			}
+			else {
+				
+				// get total entries
+				int total_rows = rows_output.getInt(1);
+				
+				// Release connection of first query
+				rows_output.close();
+				rows_statement.close();
+				
+				pr_statement = db_connection.prepareStatement(search_query, ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY);
+				
+				pr_statement.setString(1, letters);
+				
+				ResultSet output = pr_statement.executeQuery();
+				
+				// Print data
+				if (total_rows <= 5) {
+					
+					while(output.next()) {		
+						System.out.printf("\t %-15s%-10s%-10s\n", output.getString(1), output.getString(2), output.getString(3));
+					}	
+					
+				}
+				else {
+					
+					List<String[]> data = new ArrayList<>();
+					
+					int currentPage = 1;
+					boolean exitLoop = false;
+					
+					int entriesPerPage = readPositiveInt("Give number of person per page: ");
+					int total_pages = (int) Math.floor(total_rows/entriesPerPage);
+					
+					if (!(entriesPerPage>0)) {
+						System.out.println("Invalid Input!");
+						waitUser();
+						return;
+					}
+					
+					
+					System.out.println("\nThere are "+ total_pages + " total pages");
+				    
+					// Save data, so access will be easy
+					while(output.next()) {
+				        String[] row = new String[3];
+				        row[0] = output.getString(1);
+				        row[1] = output.getString(2);
+				        row[2] = output.getString(3);
+ 						data.add(row);
+					}
+					
+					
+					// After saving, proceed to listing
+					while(true) {
+						System.out.println("Page "+currentPage+" out of "+total_pages);
+				        
+						int start = (currentPage - 1) * entriesPerPage;
+				        int end = Math.min(start + entriesPerPage, data.size());
+				        
+				        for (int i = start; i < end; i++) {
+				            String[] row = data.get(i);
+				            System.out.printf("\t %-15s%-10s%-10s\n", row[0], row[1], row[2]);
+				        }
+				        
+				        if (currentPage == total_pages) {
+				            exitLoop = true;
+				            break;
+				        }
+						
+				        String page = readString("Enter the page number (1 - " + total_pages + ") or 'n' for the next page: ");
+				        
+				        if (page.equalsIgnoreCase("n")) {
+				            currentPage++;
+				            if (currentPage > total_pages) {
+				                exitLoop = true;
+				                break;
+				            }
+				        } 
+				        else {
+				        	try {
+				        		int requestedPage = Integer.parseInt(page);				        		
+				        		if (requestedPage > total_pages || requestedPage < 1) {
+				        			System.out.println("Invalid page number!");
+				        			continue;
+				        		}
+				        		
+				        		currentPage = requestedPage;
+				        	}
+				        	catch (NumberFormatException e) {
+				        		System.out.println("Invalid Input!");
+				        		waitUser();
+							}
+				        	
+				        }				           
+				        
+					}
+					
+					if (!exitLoop) {
+					    System.out.println("Reached the last page.");
+					}
+					
+				}
+			    System.out.printf("\n");
+			    
+			    // Release
+			    output.close();
+			    pr_statement.close();
+			}
+			
+		} 
+		catch (SQLException e) {
+			e.printStackTrace();
+		}
+
+		waitUser();
+
+		return;
+	}
+	
 	
 	// 1.2
 	private void changeStudentGrade() {	
+		
+		
+		
+		
+		
 		
 		
 		waitUser();
@@ -357,6 +526,7 @@ public class DbApp {
 	}
 
 	
+	// Just wait
 	private void waitUser() {
 		readString("Press Any Key to continue...");
 		return;
@@ -369,7 +539,7 @@ public class DbApp {
 		System.out.println("Select one of the available choices:\n");
 		System.out.println("1. Get course grade of student............");
 		System.out.println("2. Change student grade...................");
-		System.out.println("3. TODO");
+		System.out.println("3. Search Person..........................");
 		System.out.println("4. Analytical assessment of student.......");
 		System.out.println("5. Exit Application.......................");
 		System.out.println("------------------------------------------");
