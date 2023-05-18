@@ -9,7 +9,6 @@ import java.io.BufferedReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.sql.*;
-import java.util.concurrent.TimeUnit;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -50,13 +49,13 @@ public class DbApp {
 		
 		db_terminate_connection();
 		
-		// Add a delay of 1s, just for fun :)
-		try {
-			TimeUnit.SECONDS.sleep(1);
-		} catch (InterruptedException e) {
-			e.printStackTrace();
-		}
-		
+// 		Add a delay of 1s, just for fun :)
+//		try {
+//			TimeUnit.SECONDS.sleep(1);
+//		} catch (InterruptedException e) {
+//			e.printStackTrace();
+//		}
+	
 		System.out.println("\n\nTerminated! See Ya!");
 		
 		return;
@@ -255,7 +254,7 @@ public class DbApp {
 		return;
 	}
 	
-	/**TODO: DEBUG THIS SHIT **/
+	
 	// 1.3 
 	private void searchPerson() {
 		
@@ -312,6 +311,10 @@ public class DbApp {
 				pr_statement.setString(1, letters);
 				
 				ResultSet output = pr_statement.executeQuery();
+				if(!output.next()) {
+					System.out.println("Didn't find something!");
+					return;
+				}
 				
 				// Print data
 				if (total_rows <= 5) {
@@ -325,22 +328,18 @@ public class DbApp {
 					
 					List<String[]> data = new ArrayList<>();
 					
-					int currentPage = 1;
-					boolean exitLoop = false;
-					
 					int entriesPerPage = readPositiveInt("Give number of person per page: ");
-					int total_pages = (int) Math.floor(total_rows/entriesPerPage);
+					int total_pages = (int) Math.ceil((float)total_rows/entriesPerPage);
 					
 					if (!(entriesPerPage>0)) {
 						System.out.println("Invalid Input!");
 						waitUser();
 						return;
 					}
-					
-					
-					System.out.println("\nThere are "+ total_pages + " total pages");
+						
+					System.out.println("\nThere are "+ total_pages + " total pages. And "+total_rows+" total rows");
 				    
-					// Save data, so access will be easy
+					// Save data, so we have static data on our list
 					while(output.next()) {
 				        String[] row = new String[3];
 				        row[0] = output.getString(1);
@@ -349,56 +348,73 @@ public class DbApp {
  						data.add(row);
 					}
 					
+					int startIndex = 0, endIndex = 0, currentPage = 0;
 					
-					// After saving, proceed to listing
 					while(true) {
-						System.out.println("Page "+currentPage+" out of "+total_pages);
-				        
-						int start = (currentPage - 1) * entriesPerPage;
-				        int end = Math.min(start + entriesPerPage, data.size());
-				        
-				        for (int i = start; i < end; i++) {
-				            String[] row = data.get(i);
-				            System.out.printf("\t %-15s%-10s%-10s\n", row[0], row[1], row[2]);
-				        }
-				        
-				        if (currentPage == total_pages) {
-				            exitLoop = true;
-				            break;
-				        }
 						
-				        String page = readString("Enter the page number (1 - " + total_pages + ") or 'n' for the next page: ");
-				        
-				        if (page.equalsIgnoreCase("n")) {
-				            currentPage++;
-				            if (currentPage > total_pages) {
-				                exitLoop = true;
-				                break;
-				            }
-				        } 
-				        else {
-				        	try {
-				        		int requestedPage = Integer.parseInt(page);				        		
-				        		
-				        		if (requestedPage > total_pages || requestedPage < 1) {
-				        			System.out.println("Invalid page number!");
-				        			continue;
-				        		}
-				        		
-				        		currentPage = requestedPage;
-				        	}
-				        	catch (NumberFormatException e) {
-				        		System.out.println("Invalid Input!");
-				        		waitUser();
+						// get requestedPage
+						String userInput = readString("\nSelect page(1-"+total_pages+"), or 'n' to go to next page: ");
+						
+						if(!userInput.equalsIgnoreCase("n")) {
+							try {
+								int requestedPage = Integer.parseInt(userInput);								
+								if(requestedPage <= 0 || requestedPage > total_pages) {
+									System.out.println("Invalid Page Input!");
+									waitUser();
+									return;
+								}
+								
+								// Set it as current
+								currentPage = requestedPage;
+								
+								// calculate start of the printing
+								startIndex = entriesPerPage*(requestedPage-1);
+								endIndex = startIndex+entriesPerPage;
+								
+								System.out.println("Current Page: "+(currentPage));
+								System.out.printf("\t   %-19s %-12s%-10s\n", "Surname", "Name", "Position");
+								for(int i = startIndex; i < endIndex; i++) {
+									String[] row = data.get(i);
+									System.out.printf("\t %-20s%-14s%-10s\n", row[0], row[1], row[2]);
+									if(data.indexOf(data.get(i)) == total_rows-1) {								
+										System.out.println("Reached Last Page");
+										break;
+									}
+								}
 							}
-				        	
-				        }				           
-				        
+							catch (NumberFormatException e) {
+								System.out.println("Invalid input!");
+								continue;
+							}
+							
+						}
+						else {
+							// Check if current page is the last one
+							if(currentPage == total_pages) {
+								System.out.println("Last page reached, cannot move further!");
+								break;
+							}
+							
+							// calculate start of the printing
+							startIndex = entriesPerPage*(currentPage);
+							endIndex = startIndex+entriesPerPage;
+							
+							System.out.println("Current Page: "+(currentPage+1));
+							System.out.printf("\t   %-19s %-12s%-10s\n", "Surname", "Name", "Position");
+							for(int i = startIndex; i < endIndex; i++) {
+								String[] row = data.get(i);
+								System.out.printf("\t %-20s%-14s%-10s\n", row[0], row[1], row[2]);
+								if(data.indexOf(data.get(i)) == total_rows-1) {								
+									System.out.println("Reached Last Page");
+									break;
+								}
+							}
+							currentPage += 1;
+						}
+											
 					}
 					
-					if (!exitLoop) {
-					    System.out.println("Reached the last page.");
-					}
+					data.clear();
 					
 				}
 			    System.out.printf("\n");
@@ -406,6 +422,7 @@ public class DbApp {
 			    // Release
 			    output.close();
 			    pr_statement.close();
+			    
 			}
 			
 		} 
