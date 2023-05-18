@@ -45,7 +45,7 @@ public class DbApp {
 	
 	
 	// Terminates connection with database
-	public void end_session() {
+	private void end_session() {
 		System.out.println("Terminating connection....");
 		
 		db_terminate_connection();
@@ -84,7 +84,7 @@ public class DbApp {
 	
 	
 	// Input Handler
-	public void checkUserInput() {
+	private void checkUserInput() {
 		
 		int choice = Integer.MIN_VALUE;
 		
@@ -379,6 +379,7 @@ public class DbApp {
 				        else {
 				        	try {
 				        		int requestedPage = Integer.parseInt(page);				        		
+				        		
 				        		if (requestedPage > total_pages || requestedPage < 1) {
 				        			System.out.println("Invalid page number!");
 				        			continue;
@@ -421,13 +422,93 @@ public class DbApp {
 	// 1.2
 	private void changeStudentGrade() {	
 		
+		// Statement with parameters
+		PreparedStatement pr_statement, display_statement;
 		
-		
-		
-		
-		
+		try {
+			
+			pr_statement = db_connection.prepareStatement("UPDATE \"Register\" r\r\n"
+														+ "SET final_grade = ?,\r\n"
+														+ "    register_status = \r\n"
+														+ "	CASE\r\n"
+														+ "        WHEN ? >= 5 THEN ('pass')::register_status_type\r\n"
+														+ "        ELSE ('fail')::register_status_type\r\n"
+														+ "    END\r\n"
+														+ "FROM \"Student\" s\r\n"
+														+ "WHERE r.amka = s.amka\r\n"
+														+ "AND s.am = ?\r\n"
+														+ "AND r.course_code = ?\r\n"
+														+ "AND r.serial_number = ?\r\n"
+														+ "");
+			
+			// To show change
+			display_statement = db_connection.prepareStatement("SELECT s.am, r.course_code, r.final_grade, r.register_status FROM \"Student\" s\r\n"
+																+ "INNER JOIN \"Register\" r ON r.amka = s.amka\r\n"
+																+ "WHERE s.am = ?\r\n"
+																+ "AND r.course_code = ?\r\n"
+																+ "AND r.serial_number = ?", ResultSet.TYPE_SCROLL_INSENSITIVE, ResultSet.CONCUR_READ_ONLY);
+			
+			// Get info
+			String am = readString("Give student AM: ");
+			String course = readString("Give course code: ");
+			int serialNum = readPositiveInt("Give serial number: ");
+			
+			if(serialNum <= 0) {
+				throw new Exception("Invalid Serial Number!");
+			}
+			
+			// Setting up 2nd statement
+			display_statement.setString(1, am);
+			display_statement.setString(2, course);
+			display_statement.setInt(3, serialNum);
+
+			ResultSet output = display_statement.executeQuery();
+			if(!output.next()) {	
+				System.out.printf("\nEntry not find!");
+				System.out.println();
+				
+				output.close();
+				pr_statement.close();
+				return;
+			}
+			else {
+				// Gather info
+				System.out.printf("\n\tOld Entry:\n\n");
+				System.out.printf("\t     %-10s%-15s%-15s%-10s\n", "AM", "Course Code", "Final Grade", "Status");				
+				System.out.printf("\t %-16s%-16s%-13s%-10s\n\n", output.getString(1), output.getString(2), output.getFloat(3), output.getString(4).toUpperCase());
+			}
+			
+			int new_grade = readPositiveInt("Enter new grade: ");
+			
+			pr_statement.setInt(1, new_grade);
+			pr_statement.setInt(2, new_grade);
+			pr_statement.setString(3, am);
+			pr_statement.setString(4, course);
+			pr_statement.setInt(5, serialNum);
+	
+			pr_statement.executeUpdate();
+			
+			output = display_statement.executeQuery();
+			output.next();
+			System.out.printf("\n\tNew Entry:\n\n");
+			System.out.printf("\t     %-10s%-15s%-15s%-10s\n", "AM", "Course Code", "Final Grade", "Status");				
+			System.out.printf("\t %-16s%-16s%-13s%-10s\n\n", output.getString(1), output.getString(2), output.getFloat(3), output.getString(4).toUpperCase());
+			
+			// Release
+			pr_statement.close();
+			output.close();
+			display_statement.close();
+		} 
+		catch (SQLException e) {
+			e.printStackTrace();
+			
+		} 
+		catch (Exception e) {
+			e.printStackTrace();
+		}
 		
 		waitUser();
+		
 		return;
 	}
 	
